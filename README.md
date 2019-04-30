@@ -1,2 +1,3 @@
 # pingpong
-Very simple udp echo server for latency measurements
+
+Stupid simple udp echo server for latency measurements
