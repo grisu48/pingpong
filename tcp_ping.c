@@ -31,7 +31,7 @@
 /**
   * Pings n times on the given socket with the given len
   */
-long ping(int sock, const struct sockaddr *addr, size_t len, int n) {
+long ping(int sock, size_t len, int n) {
 	char *buf = (char*)malloc(sizeof(char)*len);
 	if(buf == NULL) return -1;
 	long ret = -1;
@@ -45,7 +45,7 @@ long ping(int sock, const struct sockaddr *addr, size_t len, int n) {
 		if(slen < 0) goto fail;
 		slen = recv(sock, buf, len, MSG_WAITALL);
 		if(slen < 0) goto fail;
-		if(slen < len) {
+		if((size_t)slen != len) {
 			fprintf(stderr, "received less bytes than sent (%ld < %ld)\n", slen, len);
 		}
 	}
@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
     	size_t bytes = pow(2,i);
 
     	for(int j=0;j<3;j++) {
-	    	long rtt = ping(sock, (struct sockaddr*)&addr, bytes, iterations);
+	    	long rtt = ping(sock, bytes, iterations);
 	    	printf("%8ld ", bytes);
 	    	if(rtt < 0) {
 	    		printf("err\n");

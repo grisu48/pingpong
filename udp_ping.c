@@ -43,7 +43,7 @@ long ping(int sock, const struct sockaddr *addr, size_t len, int n) {
 	for(int i=0;i<n;i++) {
 		ssize_t slen = sendto(sock, buf, len, MSG_DONTWAIT, addr, sizeof(struct sockaddr_in));
 		if(slen < 0) goto fail;
-		if(slen != len) {
+		if((size_t)slen != len) {
 			fprintf(stderr, "Error sending %ld bytes - only sent %ld\n", len, slen);
 			return -1;
 		}
