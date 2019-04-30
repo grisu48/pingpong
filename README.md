@@ -1,5 +1,7 @@
 # pingpong
 
+[![Build Status](https://travis-ci.org/grisu48/pingpong.svg?branch=master)](https://travis-ci.org/grisu48/pingpong)
+
 Stupid simple udp echo server for latency measurements
 
 ## Compile
