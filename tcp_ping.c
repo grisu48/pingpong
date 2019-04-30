@@ -41,13 +41,13 @@ long ping(int sock, const struct sockaddr *addr, size_t len, int n) {
 	struct timeval t1, t2, t_delta;
 	gettimeofday(&t1, NULL);
 	for(int i=0;i<n;i++) {
-		ssize_t slen = send(sock, buf, len, 0);
-		//printf("sendto = %ld\n", slen);
+		ssize_t slen = send(sock, buf, len, MSG_DONTWAIT);
 		if(slen < 0) goto fail;
-		// TODO: Lazy read!
 		slen = recv(sock, buf, len, MSG_WAITALL);
-		//printf("recvfrom = %ld\n", slen);
 		if(slen < 0) goto fail;
+		if(slen < len) {
+			fprintf(stderr, "received less bytes than sent (%ld < %ld)\n", slen, len);
+		}
 	}
 	gettimeofday(&t2, NULL);
 	timersub(&t2, &t1, &t_delta);

@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <netdb.h> 
 #include <sys/time.h>
+#include <netinet/udp.h>
 
 /**
   * Pings n times on the given socket with the given len
@@ -40,14 +41,16 @@ long ping(int sock, const struct sockaddr *addr, size_t len, int n) {
 	struct timeval t1, t2, t_delta;
 	gettimeofday(&t1, NULL);
 	for(int i=0;i<n;i++) {
-		ssize_t slen = sendto(sock, buf, len, 0, addr, sizeof(struct sockaddr_in));
-		//printf("sendto = %ld\n", slen);
+		ssize_t slen = sendto(sock, buf, len, MSG_DONTWAIT, addr, sizeof(struct sockaddr_in));
 		if(slen < 0) goto fail;
-		// TODO: Lazy read!
+		if(slen != len) {
+			fprintf(stderr, "Error sending %ld bytes - only sent %ld\n", len, slen);
+			return -1;
+		}
 		struct sockaddr src_addr;
 		socklen_t addrlen = sizeof(src_addr);
 		slen = recvfrom(sock, buf, len, MSG_WAITALL, &src_addr, &addrlen);
-		//printf("recvfrom = %ld\n", slen);
+		// NOTE: We can only receive up to MTU size packets as of now
 		if(slen < 0) goto fail;
 	}
 	gettimeofday(&t2, NULL);
@@ -91,10 +94,15 @@ int main(int argc, char** argv) {
     addr.sin_port = htons(port); 
     addr.sin_addr.s_addr = inet_addr(remote); 
 
+	// We don't fragment UDP packets as of now
+	int one = 1;
+	if(setsockopt(sock, IPPROTO_IP, IP_PMTUDISC_DO, &one, sizeof(one)) < 0) 
+		fprintf(stderr, "Error setting the don't fragment flag: %s\n", strerror(errno));
+
     long iterations = 100;
 
     printf("   Bytes    RTT [usec]\n");
-    for(int i=0;i<15;i++) {
+    for(int i=0;i<11;i++) {
     	size_t bytes = pow(2,i);
 
     	for(int j=0;j<3;j++) {
