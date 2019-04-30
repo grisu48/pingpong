@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <netinet/tcp.h>
 
 #define BUF_SIZE 4096
 
@@ -32,6 +33,7 @@ static pthread_t tid_udp = 0;
 static pthread_t tid_tcp = 0;
 static volatile size_t bytes_udp = 0;
 static volatile size_t bytes_tcp = 0;
+static volatile bool running = true;
 
 
 /** Create udp server on the given port
@@ -54,10 +56,48 @@ void cleanup();
 
 int main(int argc, char** argv) {
     bool udp = true;
-    bool tcp = false;
+    bool tcp = true;
+    bool daemon = false;
     
-    if(argc > 1)
-    	port = atoi(argv[1]);
+    for(int i=1;i<argc;i++) {
+    	const char* arg = argv[i];
+    	if(strlen(arg) == 0) continue;
+    	if(arg[0] == '-') {
+    		if(!strcmp("-h", arg) || !strcmp("--help", arg)) {
+    			printf("Stupid simple echo server\n");
+    			printf("  2019, Felix Niederwanger\n\n");
+    			printf("Usage: %s [OPTIONS] [PORT]\n", argv[0]);
+    			printf("OPTIONS:\n");
+    			printf("  -h, --help            Print this help message");
+    			printf("  -u, --udp             Enable udp server");
+    			printf("  -t, --tcp             Enable tcp server");
+    			printf("  -d, --daemon          Run as daemon");
+
+    		} else if(!strcmp("-d", arg) || !strcmp("--daemon", arg)) {
+    			daemon = true;
+    		} else if(!strcmp("-u", arg) || !strcmp("--udp", arg)) {
+    			udp = true;
+    		} else if(!strcmp("-t", arg) || !strcmp("--tcp", arg)) {
+    			tcp = true;
+    		}
+    	} else
+    		port = atoi(argv[1]);
+    }
+
+    if (daemon) { // Fork daemon
+    		pid_t pid = fork();
+		if(pid < 0) {
+			fprintf(stderr, "Forking failed: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		} else if(pid > 0)
+			exit(EXIT_SUCCESS); // Success. The parent leaves here
+		pid = fork();
+		if(pid < 0) {
+			fprintf(stderr, "Forking failed: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		} else if(pid > 0) 
+			exit(EXIT_SUCCESS);	// Success. The parent again leaves here
+    }
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
@@ -98,6 +138,31 @@ typedef struct {
 	bool udp;
 } s_thread_params_t;
 
+void * tcp_client(void * args) {
+	// Make parameters thread-local and free memory
+	s_thread_params_t *params = (s_thread_params_t*)args;
+	const int fd = params->sock;
+	free(params);
+
+	// Disable Nagle's algorithm
+	int one = 1;
+	if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&one, sizeof(int)) < 0)
+		fprintf(stderr, "Warning: Failed to set TCP_NODELAY for new socket: %s\n", strerror(errno));
+
+	char buf[BUF_SIZE];
+	while(true) {
+		ssize_t len = recv(fd, buf, BUF_SIZE, 0);
+		if(len < 0) goto finish;
+		ssize_t slen = send(fd, buf, len, MSG_DONTWAIT);
+		if(slen < 0) goto finish;
+		bytes_tcp += len;		// XXX atomic add
+	}
+
+finish:
+	close(fd);
+	return NULL;
+}
+
 void * server_thread(void * args) {
 	// Make parameters thread-local and free memory
 	s_thread_params_t *params = (s_thread_params_t*)args;
@@ -108,10 +173,11 @@ void * server_thread(void * args) {
 	if (udp) {
 		char buf[BUF_SIZE];
 		
-		while(fd > 0) {
+		while(true) {
 			struct sockaddr_in src_addr;
 			socklen_t addrlen = sizeof(src_addr);
 			ssize_t len = recvfrom(fd, buf, BUF_SIZE, MSG_WAITALL, (struct sockaddr*)&src_addr, &addrlen);
+			if(!running) goto finish;
 			if(len <= 0) {
 				fprintf(stderr, "udp receive error: %s\n", strerror(errno));
 				goto finish;
@@ -124,7 +190,39 @@ void * server_thread(void * args) {
 			}
 			bytes_udp += len;		// TODO: atomic increment
 		} 
-}
+	} else {
+		// I am a listener server
+		if(listen(fd, 10) < 0) {
+			fprintf(stderr, "listening failed: %s\n", strerror(errno));
+			goto finish;
+		}
+
+		while(true) {
+			const int sock = accept(fd, NULL, NULL);
+			if(!running) goto finish;
+			if(sock <= 0) {
+				fprintf(stderr, "accept error: %s\n", strerror(errno));
+				goto finish;
+			}
+
+			// Background thread
+			pthread_t tid;
+			s_thread_params_t *params = (s_thread_params_t*)malloc(sizeof(s_thread_params_t));
+			if(params == NULL) {
+				fprintf(stderr, "out of memory");
+				goto finish;
+			}
+			params->sock = sock;
+			params->udp = false;
+			int rc = pthread_create(&tid, NULL, tcp_client, params);
+			if(rc < 0) {
+				free(params);
+				fprintf(stderr, "error creating tcp client thread: %s\n", strerror(errno));
+				goto finish;
+			}
+			pthread_detach(tid);
+		}
+	}
 
 finish:
 	close(fd);
@@ -198,15 +296,18 @@ void sig_handler(int signo) {
 	switch(signo) {
 		case SIGINT:
 			if(emergency) exit(EXIT_FAILURE);
-			emergency = true;	
+			emergency = true;
+			running = false;
 
 			fprintf(stderr, "SIGINT received\n");
 			if(sock_udp > 0) shutdown(sock_udp, SHUT_RDWR);
-			if(sock_tcp > 0) close(sock_tcp);
+			if(sock_tcp > 0) shutdown(sock_tcp, SHUT_RDWR);
 			return;
 		case SIGTERM:
-			if(sock_udp > 0) close(sock_udp);
-			if(sock_tcp > 0) close(sock_tcp);
+			emergency = true;
+			running = false;
+			if(sock_udp > 0) shutdown(sock_udp, SHUT_RDWR);
+			if(sock_tcp > 0) shutdown(sock_tcp, SHUT_RDWR);
 			exit(EXIT_FAILURE);
 			return;
 		case SIGUSR1:

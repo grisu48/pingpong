@@ -53,4 +53,5 @@ dkms.conf
 
 # Binaries
 echo
-eping
+tcp_ping
+udp_ping
