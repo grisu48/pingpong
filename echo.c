@@ -58,6 +58,9 @@ int main(int argc, char** argv) {
     bool udp = true;
     bool tcp = true;
     bool daemon = false;
+    uid_t uid = 0;
+    gid_t gid = 0;
+    char *w_dir = NULL;
     
     for(int i=1;i<argc;i++) {
     	const char* arg = argv[i];
@@ -72,6 +75,9 @@ int main(int argc, char** argv) {
     			printf("  -u, --udp             Enable udp server");
     			printf("  -t, --tcp             Enable tcp server");
     			printf("  -d, --daemon          Run as daemon");
+    			printf("      --user UID        Run as user UID");
+    			printf("      --group GID       Run as group GID");
+    			printf("      --chdir DIR       chdir to DIR");
 
     		} else if(!strcmp("-d", arg) || !strcmp("--daemon", arg)) {
     			daemon = true;
@@ -79,6 +85,12 @@ int main(int argc, char** argv) {
     			udp = true;
     		} else if(!strcmp("-t", arg) || !strcmp("--tcp", arg)) {
     			tcp = true;
+    		} else if(!strcmp("--user", arg)) {
+    			uid = (uid_t)atoi(argv[++i]);
+    		} else if(!strcmp("--group", arg)) {
+    			gid = (gid_t)atoi(argv[++i]);
+    		} else if(!strcmp("--chdir", arg)) {
+    			w_dir = argv[++i];
     		}
     	} else
     		port = atoi(argv[1]);
@@ -117,6 +129,30 @@ int main(int argc, char** argv) {
     		fprintf(stderr, "Error creating tcp server: %s\n", strerror(errno));
     		exit(EXIT_FAILURE);
     	}
+    }
+    
+    // Drop privileges, if root
+    if (getuid() == 0) {
+    	if(gid > 0) {
+    	
+	    	if (setgid(gid) != 0) {
+	    		fprintf(stderr, "Error setting gid to %d: %s\n", gid, strerror(errno));
+	    		exit(EXIT_FAILURE);
+	    	}
+	    }
+	    if(uid > 0) {
+	    	if (setuid(uid) != 0) {
+	    		fprintf(stderr, "Error setting uid to %d: %s\n", uid, strerror(errno));
+	    		exit(EXIT_FAILURE);
+	    	}
+	    }
+	    if(w_dir != NULL) {
+	    	if(chdir(w_dir) != 0) {
+	    		fprintf(stderr, "Error changing to '%s': %s\n", w_dir, strerror(errno));
+	    		exit(EXIT_FAILURE);
+	    	
+	    	}
+	    }
     }
     
     // Wait for threads to terminate
