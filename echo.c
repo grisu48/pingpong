@@ -156,10 +156,12 @@ int main(int argc, char** argv) {
     }
     
     // Wait for threads to terminate
-    if(tid_udp > 0)
+    if(tid_udp > 0) {
     	pthread_join(tid_udp, NULL);
-    if(tid_tcp > 0)
+    }
+    if(tid_tcp > 0) {
     	pthread_join(tid_tcp, NULL);
+    }
 
 	if (sock_udp > 0)
 		printf("udp server handled %ld bytes\n", bytes_udp);
