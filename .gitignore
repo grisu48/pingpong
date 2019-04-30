@@ -52,7 +52,7 @@ Mkfile.old
 dkms.conf
 
 # Binaries
-echo
+echod
 tcp_ping
 udp_ping
 latency

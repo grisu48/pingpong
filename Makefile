@@ -3,9 +3,9 @@ CC_FLAGS=-Og -g2 -Wall -Wextra -Werror -std=c99
 
 
 default: all
-all: echo udp_ping tcp_ping latency
+all: echod udp_ping tcp_ping latency
 
-echo:	echo.c
+echod:	echod.c
 	$(CC) $(CC_FLAGS) -o $@ $< -pthread
 udp_ping:	udp_ping.c
 	$(CC) $(CC_FLAGS) -o $@ $< -D_DEFAULT_SOURCE -D_BSD_SOURCE -lm

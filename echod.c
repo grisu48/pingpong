@@ -71,14 +71,14 @@ int main(int argc, char** argv) {
     			printf("  2019, Felix Niederwanger\n\n");
     			printf("Usage: %s [OPTIONS] [PORT]\n", argv[0]);
     			printf("OPTIONS:\n");
-    			printf("  -h, --help            Print this help message");
-    			printf("  -u, --udp             Enable udp server");
-    			printf("  -t, --tcp             Enable tcp server");
-    			printf("  -d, --daemon          Run as daemon");
-    			printf("      --user UID        Run as user UID");
-    			printf("      --group GID       Run as group GID");
-    			printf("      --chdir DIR       chdir to DIR");
-
+    			printf("  -h, --help            Print this help message\n");
+    			printf("  -u, --udp             Enable udp server\n");
+    			printf("  -t, --tcp             Enable tcp server\n");
+    			printf("  -d, --daemon          Run as daemon\n");
+    			printf("      --user UID        Run as user UID\n");
+    			printf("      --group GID       Run as group GID\n");
+    			printf("      --chdir DIR       chdir to DIR\n");
+				exit(EXIT_SUCCESS);
     		} else if(!strcmp("-d", arg) || !strcmp("--daemon", arg)) {
     			daemon = true;
     		} else if(!strcmp("-u", arg) || !strcmp("--udp", arg)) {
