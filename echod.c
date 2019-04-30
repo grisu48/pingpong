@@ -74,6 +74,8 @@ int main(int argc, char** argv) {
     			printf("  -h, --help            Print this help message\n");
     			printf("  -u, --udp             Enable udp server\n");
     			printf("  -t, --tcp             Enable tcp server\n");
+    			printf("      --noudp           Disable udp server\n");
+    			printf("      --notcp           Disable tcp server\n");
     			printf("  -d, --daemon          Run as daemon\n");
     			printf("      --user UID        Run as user UID\n");
     			printf("      --group GID       Run as group GID\n");
@@ -85,6 +87,10 @@ int main(int argc, char** argv) {
     			udp = true;
     		} else if(!strcmp("-t", arg) || !strcmp("--tcp", arg)) {
     			tcp = true;
+    		} else if(!strcmp("--noudp", arg)) {
+    			udp = false;
+    		} else if(!strcmp("--notcp", arg)) {
+    			tcp = false;
     		} else if(!strcmp("--user", arg)) {
     			uid = (uid_t)atoi(argv[++i]);
     		} else if(!strcmp("--group", arg)) {
@@ -188,9 +194,9 @@ void * tcp_client(void * args) {
 		fprintf(stderr, "Warning: Failed to set TCP_NODELAY for new socket: %s\n", strerror(errno));
 
 	char buf[BUF_SIZE];
-	while(true) {
+	while(running) {
 		ssize_t len = recv(fd, buf, BUF_SIZE, 0);
-		if(len < 0) goto finish;
+		if(len <= 0) goto finish;
 		ssize_t slen = send(fd, buf, len, MSG_DONTWAIT);
 		if(slen < 0) goto finish;
 		bytes_tcp += len;		// XXX atomic add
