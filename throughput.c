@@ -30,7 +30,7 @@
 
 // Number of runs per series
 #define SERIES 10
-#define DISABLE_NAGLE 1
+#define DISABLE_NAGLE 0
 
 static char *remote = "";
 static int port = 7;
@@ -212,9 +212,9 @@ static void throughput_test(const struct sockaddr_in *remote) {
 		long t_min = a_min(rtt, SERIES);
 		long t_max = a_max(rtt, SERIES);
 
-		double s_avg = (size*1e6/(t_avg))/(1024.0*1024.0);
-		double s_min = (size*1e6/(t_max))/(1024.0*1024.0);
-		double s_max = (size*1e6/(t_min))/(1024.0*1024.0);
+		double s_avg = size/(t_avg*1e-6)/(1024.0*1024.0);
+		double s_min = size/(t_max*1e-6)/(1024.0*1024.0);
+		double s_max = size/(t_min*1e-6)/(1024.0*1024.0);
 
 		printf("%ld\t%8.2f\t%8.2f\t%8.2f\n", bytes[i], s_avg, s_min, s_max);
 
