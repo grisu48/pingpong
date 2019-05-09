@@ -225,6 +225,8 @@ static void throughput_test(const struct sockaddr_in *remote) {
 
 
 
+#if DISABLE_NAGLE == 1
 finish:
 	close(sock);
+#endif
 }
