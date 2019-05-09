@@ -132,23 +132,28 @@ long tcp_connect(int sock, const struct sockaddr *remote) {
 	return (t_delta.tv_usec + t_delta.tv_sec * 1000L*1000L);
 }
 
-long tcp_ping(int sock, size_t len, int n) {
-	char *buf = (char*)malloc(sizeof(char)*len);
+long tcp_sendrecv(const int sock, const size_t len, const int n, const size_t buf_len) {
+	char *buf = (char*)malloc(sizeof(char)*buf_len);
 	if(buf == NULL) return -1;
 	long ret = -1;
 
-	memset(buf, 'a', len);
+	// XXX Randomize data?
+	memset(buf, 'a', buf_len);
 
 	struct timeval t1, t2, t_delta;
 	gettimeofday(&t1, NULL);
 	for(int i=0;i<n;i++) {
-		ssize_t slen = send(sock, buf, len, MSG_DONTWAIT);
-		if(slen < 0) goto fail;
-		slen = recv(sock, buf, len, MSG_WAITALL);
-		if(slen < 0) goto fail;
-		if((size_t)slen < len) {
-			fprintf(stderr, "received less bytes than sent (%ld < %ld)\n", slen, len);
+		size_t remaining = len;
+
+		while(remaining > 0) {
+			size_t b = (buf_len<remaining?buf_len:remaining);
+			ssize_t slen = send(sock, buf, b, MSG_DONTWAIT);
+			if(slen < 0) goto fail;
+			slen = recv(sock, buf, b, MSG_WAITALL);
+			if(slen < 0) goto fail;
+			remaining -= b;
 		}
+
 	}
 	gettimeofday(&t2, NULL);
 	timersub(&t2, &t1, &t_delta);
@@ -163,7 +168,8 @@ fail:
 }
 
 static void throughput_test(const struct sockaddr_in *remote) {
-	long bytes[] = {128L,256L,512L,1024L,2048L,4096L,10240L,40960L,81920L,122880L,163840L,204800L,327680L,409600L,819200L,1228800L,1638400L};
+	long bytes[] = {128L,256L,512L,1024L,2048L,4096L,10240L,40960L,81920L,122880L,163840L,204800L,327680L,409600L,819200L,1228800L,1638400L, 3276800L, 4915200L, 6553600L};
+	const size_t buf_len = 10240L;		// Make sure it's large enough (ib has sometimes 4k!)
 	int sock;
 
 	printf("## ==== TCP throughput ====================================================== ##\n");
@@ -199,7 +205,7 @@ static void throughput_test(const struct sockaddr_in *remote) {
 		long rtt[SERIES];
 		const long size = bytes[i];
 		for(int j=0;j<SERIES;j++) {
-			rtt[j] = tcp_ping(sock, size, iterations);
+			rtt[j] = tcp_sendrecv(sock, size, iterations, buf_len);
 		}
 
 		long t_avg = a_avg(rtt, SERIES);
