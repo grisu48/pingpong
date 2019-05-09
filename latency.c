@@ -57,10 +57,18 @@ int main(int argc, char** argv) {
 				printf("Usage: %s [OPTIONS] REMOTE [PORT]\n", argv[0]);
 				printf("OPTIONS\n");
 				printf("  -h, --help                 Print this help message\n");
+				printf("  -i, --iterations N         Set number of iterations (default: 10)\n");
 				printf("REMOTE:PORT must be an endpoint with 'echo' running (tcp+udp)\n");
 				printf("\n");
 				printf("https://github.com/grisu48/pingpong\n");
 				exit(EXIT_SUCCESS);
+			} else if(!strcmp("-i", arg) || !strcmp("--iterations", arg)) {
+				// XXX: Out of bound check
+				iterations = atoi(argv[++i]);
+			} else {
+				fprintf(stderr, "Illegal argument: %s\n", arg);
+				printf("Type %s --help if you need help\n", argv[0]);
+				exit(EXIT_FAILURE);
 			}
 		} else {
 			if(strlen(remote) == 0)
