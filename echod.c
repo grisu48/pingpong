@@ -23,7 +23,7 @@
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 
-#define BUF_SIZE 4096
+#define BUF_SIZE 10240L
 
 
 static int port = 7; // See https://tools.ietf.org/html/rfc862
@@ -194,10 +194,11 @@ void * tcp_client(void * args) {
 		fprintf(stderr, "Warning: Failed to set TCP_NODELAY for new socket: %s\n", strerror(errno));
 
 	char buf[BUF_SIZE];
+	int flags = 0; //MSG_DONTWAIT;
 	while(running) {
 		ssize_t len = recv(fd, buf, BUF_SIZE, 0);
 		if(len <= 0) goto finish;
-		ssize_t slen = send(fd, buf, len, MSG_DONTWAIT);
+		ssize_t slen = send(fd, buf, len, flags);
 		if(slen < 0) goto finish;
 		bytes_tcp += len;		// XXX atomic add
 	}
