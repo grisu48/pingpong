@@ -12,6 +12,7 @@ Stupid simple udp echo server for latency measurements
 * `udp_ping` - Simple udp ping program
 * `tcp_ping` - Simple tcp ping program
 * `latency` - Stupid simple latency test program
+* `throughput` - Simple throughput test program
 
 ## echod - Echo daemon
 
@@ -35,3 +36,9 @@ Latency test runs a gainst a server, that runs `echod`.
 Then you normally just need to run `./latency REMOTE` to get the first results.
 
 As of now, `REMOTE` needs to be an IPv4 address (Shame on me!)
+
+## Throughput test
+
+Throughput (bandwidth) tests run agains the `echod` server. The usage is analoge to `latency`
+
+    ./throughput [OPTIONS] REMOTE [PORT]
