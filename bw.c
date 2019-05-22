@@ -451,7 +451,7 @@ int run_client(const char* remote, const int port) {
 	printf("%10s\t%5s\t%5s\t%5s\t%7s\n","Size", "t_vg", "t_min", "t_max", "bandwidth");
 	double max_speed = 0;
 	char strbuf[256];
-	for(size_t i=0;i<nTests;i++) {
+	for(size_t i=0;i<(size_t)nTests;i++) {
 		long size = bytes[i];
 
 		long tests[SERIES];
