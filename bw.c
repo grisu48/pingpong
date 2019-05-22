@@ -140,6 +140,11 @@ void * tcp_client(void * args) {
 		msg[8] = '\0';
 		if(!strcmp("CLOSE", msg)) {
 			break;
+		} else if(!strcmp("PING", msg)) {
+			if(send(sock, "PONG", 4, MSG_DONTWAIT) < 0) {
+				fprintf(stderr, "pong failed: %s\n", strerror(errno));
+				break;
+			}
 		} else {
 			long size = atol(msg);
 			//printf("Receiving %ld bytes ... \n", size);
@@ -270,6 +275,18 @@ static stats_l stats(const long* arr, const size_t n) {
 	return ret;
 }
 
+long ping(const int sock) {
+	struct timeval t1, t2, t_delta;
+	char buf[9];
+	bzero(buf, 9);
+	gettimeofday(&t1, NULL);
+	if(send(sock, "PING    ", 8, 0) < 0) return -1;
+	if(recv(sock, buf, 8, MSG_WAITALL) < 0) return -1;
+	gettimeofday(&t2, NULL);
+	timersub(&t2, &t1, &t_delta);
+	return (t_delta.tv_usec + t_delta.tv_sec * 1000L*1000L);
+}
+
 /** Perform a bandwith test on the given socket by sending the given amout of bytes */
 pair_l bw_test(const int sock, const size_t size) {
 	pair_l ret;
@@ -351,6 +368,22 @@ void warmup(const int sock, int seconds) {
 	}
 }
 
+static char* str_speed(char* buf, size_t size, const double speed) {
+	if(speed > 1.2e9) {
+		double gb = speed*1e-9;
+		snprintf(buf, size, "%5.2f GB/s (%5.2f Gb/s)", gb, gb*8.0);
+	} else if(speed > 1.2e6) {
+		double mb = speed*1e-6;
+		snprintf(buf, size, "%5.2f MB/s (%5.2f Mb/s)", mb, mb*8.0);
+	} else if(speed > 1.2e3) {
+		double kb = speed*1e-3;
+		snprintf(buf, size, "%5.2f KB/s (%5.2f Kb/s)", kb, kb*8.0);
+	} else {
+		snprintf(buf, size, "%5.2f B/s (%5.2f b/s)", speed, speed*8.0);
+	}
+	return buf;
+}
+
 int run_client(const char* remote, const int port) {
 	int sock = 0;
     struct sockaddr_in addr; 
@@ -389,8 +422,35 @@ int run_client(const char* remote, const int port) {
 	long bytes[] = {128L,256L,512L,1024L,2048L,4096L,10240L,40960L,81920L,122880L,163840L,204800L,327680L,409600L,819200L,1228800L,1638400L, 3276800L, 4915200L, 6553600L, 65536000L};
 	const int nTests =(sizeof(bytes)/sizeof(bytes[0]));
 	printf("Running %d tests with %d iterations each\n\n", nTests, SERIES);
-	printf("%10s\t%5s\t%5s\t%5s [µs]\n","Size", "Avg", "Min", "Max");
+	
+	// First do a ping test
+	{
+		long ping_us = ping(sock);
+		
+		long ping_avg = ping_us;
+		long ping_worst = ping_us;
+		
+		if(ping_us < 0) {
+			fprintf(stderr, "Ping failed: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+		for(int i=0;i<SERIES-1;i++) {
+			long t = ping(sock);
+			if(t < 0) {
+				fprintf(stderr, "Ping failed: %s\n", strerror(errno));
+				exit(EXIT_FAILURE);
+			}
+			if(t < ping_us) ping_us = t;
+			if(t > ping_worst) ping_worst = t;
+			ping_avg += t;
+		}
+		ping_avg /= SERIES;
+		printf("  Ping (min avg max) : %ld %ld %ld µs\n\n", ping_us, ping_avg, ping_worst);
+	}
+	
+	printf("%10s\t%5s\t%5s\t%5s\t%7s\n","Size", "t_vg", "t_min", "t_max", "bandwidth");
 	double max_speed = 0;
+	char strbuf[256];
 	for(size_t i=0;i<nTests;i++) {
 		long size = bytes[i];
 
@@ -405,23 +465,12 @@ int run_client(const char* remote, const int port) {
 		}
 		stats_l st = stats(tests, SERIES);
 		
-		printf("%10ld\t%5ld\t%5ld\t%5ld\n", size, st.avg, st.min, st.max);
 		double speed = size / (st.min) * 1e6;		// Bytes/s
+		printf("%10ld\t%5ld\t%5ld\t%5ld\t%7s\n", size, st.avg, st.min, st.max, str_speed(strbuf, 256, speed));
 		if(speed > max_speed) max_speed = speed;
 	}
-	printf("Maximum throughput: ");
-	if(max_speed > 2e9) {
-		double gb = max_speed / (1024.0*1024.0*1024.0);
-		printf("%5.2f GiB/s (%5.2f GBit/sec)\n", gb, gb*8.0);
-	} else if(max_speed > 2e6) {
-		double mb = max_speed / (1024.0*1024.0);
-		printf("%5.2f MiB/s (%5.2f MBit/sec)\n", mb, mb*8.0);
-	} else if(max_speed > 2e3) {
-		double kb = max_speed / (1024.0);
-		printf("%5.2f KiB/s (%5.2f kBit/sec)\n", kb, kb*8.0);
-	} else {
-		printf("%5.2f B/s (%5.2f Bit/sec)\n", max_speed, max_speed*8.0);
-	}
+	
+	printf("Maximum throughput: %s\n", str_speed(strbuf, 256, max_speed));
 
 	// Close socket
 	char msg[8];
