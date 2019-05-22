@@ -57,3 +57,4 @@ tcp_ping
 udp_ping
 latency
 throughput
+bw
